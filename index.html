@@ -3,24 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Export Doc Auto-Extract Pro</title>
+    <title>Export Translator Pro</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #eef2f3; padding: 10px; margin: 0; }
-        .card { background: white; max-width: 700px; margin: 10px auto; padding: 20px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
-        .upload-area { border: 2px dashed #0070f3; padding: 20px; text-align: center; border-radius: 10px; margin-bottom: 20px; background: #f9fbff; }
-        .btn { background: #0070f3; color: white; border: none; padding: 18px; border-radius: 8px; width: 100%; font-weight: bold; }
-        .btn:disabled { background: #adb5bd; }
-        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
-        @media (max-width: 500px) { .result-grid { grid-template-columns: 1fr; } }
-        .field-box { border: 1px solid #e1e4e8; padding: 10px; border-radius: 6px; border-left: 4px solid #0070f3; }
-        .label { font-size: 10px; color: #6a737d; display: block; text-transform: uppercase; }
-        .value { font-size: 13px; font-weight: bold; color: #24292e; }
-        .status-msg { text-align: center; font-size: 13px; margin: 10px 0; color: #d35400; }
+        body { font-family: sans-serif; background: #f4f7f6; padding: 15px; margin: 0; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .upload-box { border: 2px dashed #0070f3; padding: 30px; text-align: center; border-radius: 10px; cursor: pointer; background: #fafafa; margin-bottom: 20px; }
+        .btn { background: #0070f3; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-size: 16px; font-weight: bold; }
+        .btn:disabled { background: #ccc; }
+        .status { text-align: center; color: #0070f3; margin: 10px 0; font-weight: bold; font-size: 14px; }
+        .results { margin-top: 20px; display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .box { border: 1px solid #eee; padding: 10px; border-radius: 5px; border-left: 4px solid #0070f3; }
+        .label { font-size: 11px; color: #666; font-weight: bold; }
+        .val { font-size: 14px; display: block; margin-top: 3px; }
     </style>
 </head>
 <body>
@@ -28,103 +27,82 @@
     <script type="text/babel">
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-        [span_2](start_span)// Improved Regex for your specific document[span_2](end_span)
-        const EXTRACTION_MAP = [
-            { label: "Chassis No (VIN)", key: "vin", regex: /(?:車台番号|Serial number)\s*([A-Z0-9-]+)/i },
-            { label: "Engine Model", key: "engine", regex: /(?:原動機の型式|Engine Model)\s*([A-Z0-9]+)/i },
-            { label: "First Reg. Date", key: "firstReg", regex: /(?:初度登録年月|First Reg. Date)\s*([^\s\n]+)/ },
-            { label: "Registration No", key: "regNo", regex: /(?:登録番号|Registration No)\s*([^\s]+)/ },
-            { label: "Latest Owner", key: "lastOwner", regex: /(?:Latest Owner|所有者)\s*[:：]?\s*([^\n\r]+)/ },
-            { label: "FF Weight (kg)", key: "ff", regex: /(?:前前軸重|FE Weight)\s*(\d+)/ },
-            { label: "RR Weight (kg)", key: "rr", regex: /(?:後後軸重|RR Weight)\s*(\d+)/ },
-            { label: "Mileage", key: "mile", regex: /(\d{1,3}(,\d{3})*)\s*km/ }
-        ];
-
         function App() {
-            const [preview, setPreview] = React.useState(null);
+            const [img, setImg] = React.useState(null);
             const [status, setStatus] = React.useState("");
-            const [results, setResults] = React.useState({});
-            const [loading, setLoading] = React.useState(false);
+            const [data, setData] = React.useState(null);
 
             const onFile = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                setStatus("Optimizing image for AI...");
+                setStatus("Loading...");
                 
-                const reader = new FileReader();
-                reader.onload = async function() {
-                    let imageSource = this.result;
-                    
-                    if (file.type === "application/pdf") {
+                if (file.type === "application/pdf") {
+                    const reader = new FileReader();
+                    reader.onload = async function() {
                         const pdf = await pdfjsLib.getDocument(new Uint8Array(this.result)).promise;
                         const page = await pdf.getPage(1);
-                        const viewport = page.getViewport({scale: 3.0}); [span_3](start_span)// Higher scale for better OCR[span_3](end_span)
                         const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
+                        const viewport = page.getViewport({scale: 2.0});
                         canvas.height = viewport.height; canvas.width = viewport.width;
-                        await page.render({canvasContext: ctx, viewport}).promise;
-                        imageSource = canvas.toDataURL();
-                    }
-
-                    [span_4](start_span)// Pre-processing: Convert to Grayscale/High Contrast[span_4](end_span)
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        canvas.width = img.width; canvas.height = img.height;
-                        ctx.filter = 'grayscale(1) contrast(1.2) brightness(1.1)';
-                        ctx.drawImage(img, 0, 0);
-                        setPreview(canvas.toDataURL());
-                        setStatus("Ready. Tap Extract.");
+                        await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+                        setImg(canvas.toDataURL());
+                        setStatus("File Ready.");
                     };
-                    img.src = imageSource;
-                };
-                
-                if (file.type === "application/pdf") reader.readAsArrayBuffer(file);
-                else reader.readAsDataURL(file);
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    setImg(URL.createObjectURL(file));
+                    setStatus("File Ready.");
+                }
             };
 
-            const runOCR = async () => {
-                setLoading(true);
-                setStatus("AI is reading... keep this tab open.");
+            const translate = async () => {
+                setStatus("AI Starting... (Stay on this page)");
                 try {
-                    const worker = await Tesseract.createWorker('jpn+eng');
-                    const { data: { text } } = await worker.recognize(preview);
-                    await worker.terminate();
+                    const result = await Tesseract.recognize(img, 'jpn+eng', {
+                        logger: m => { if(m.status === 'recognizing text') setStatus(`Reading: ${Math.floor(m.progress * 100)}%`); }
+                    });
+                    
+                    const text = result.data.text;
+                    const map = [
+                        { l: "Chassis Number", r: /車台番号\s*([A-Z0-9-]+)/i },
+                        { l: "Engine Model", r: /原動機の型式\s*([A-Z0-9]+)/i },
+                        { l: "First Reg Date", r: /初度登録年月\s*([^\s\n]+)/ },
+                        { l: "Latest Owner", r: /Owner\s*\n\s*([^\n]+)/ },
+                        { l: "Weight (FF)", r: /前前軸重\s*(\d+)/ },
+                        { l: "Weight (RR)", r: /後後軸重\s*(\d+)/ }
+                    ];
 
-                    const data = {};
-                    EXTRACTION_MAP.forEach(item => {
-                        const match = text.match(item.regex);
-                        data[item.key] = match ? match[1].trim() : "Not Found";
+                    const found = {};
+                    map.forEach(item => {
+                        const m = text.match(item.r);
+                        found[item.l] = m ? m[1] : "Not Detected";
                     });
 
-                    setResults(data);
-                    setStatus("Scan Complete!");
-                } catch (err) {
-                    setStatus("Error. Use a clearer document.");
+                    setData(found);
+                    setStatus("Done!");
+                } catch (e) {
+                    setStatus("Error. Try again.");
                 }
-                setLoading(false);
             };
 
             return (
-                <div className="card">
-                    <div className="header"><h2>Export Translator Pro</h2></div>
-                    <div className="upload-area" onClick={() => document.getElementById('f').click()}>
-                        {preview ? <img src={preview} style={{width:'100%', maxHeight:'150px', objectFit:'contain'}} /> : "Upload PDF or Photo"}
-                        <input id="f" type="file" hidden onChange={onFile} />
+                <div className="container">
+                    <h2 style={{textAlign:'center', marginTop:0}}>Export Translator</h2>
+                    <div className="upload-box" onClick={() => document.getElementById('file').click()}>
+                        {img ? <img src={img} style={{width:'100%', maxHeight:'150px'}} /> : "Tap to Upload"}
+                        <input id="file" type="file" hidden onChange={onFile} />
                     </div>
-                    <button className="btn" onClick={runOCR} disabled={loading || !preview}>
-                        {loading ? "Processing AI..." : "Extract Data Now"}
-                    </button>
-                    <div className="status-msg">{status}</div>
-                    <div className="result-grid">
-                        {Object.keys(results).length > 0 && EXTRACTION_MAP.map(item => (
-                            <div key={item.key} className="field-box">
-                                <span className="label">{item.label}</span>
-                                <span className="value">{results[item.key]}</span>
+                    <button className="btn" onClick={translate} disabled={!img}>Start Translation</button>
+                    <div className="status">{status}</div>
+                    {data && <div className="results">
+                        {Object.keys(data).map(k => (
+                            <div className="box" key={k}>
+                                <span className="label">{k}</span>
+                                <span className="val">{data[k]}</span>
                             </div>
                         ))}
-                    </div>
+                    </div>}
                 </div>
             );
         }
