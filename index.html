@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Doc Translator Pro</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .upload-box { border: 2px dashed #0070f3; padding: 30px; text-align: center; border-radius: 10px; cursor: pointer; margin-bottom: 20px; }
+        .btn { background: #0070f3; color: white; border: none; padding: 12px 20px; border-radius: 8px; width: 100%; font-size: 16px; font-weight: bold; }
+        .btn:disabled { background: #ccc; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        td { padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .label { font-weight: bold; color: #555; }
+        .value { color: #0070f3; text-align: right; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const JPN_MAP = {
+            "車台番号": "Chassis Number",
+            "型式": "Model Code",
+            "初度登録年月": "First Registration Date",
+            "原動機の型式": "Engine Model",
+            "自動車の種別": "Vehicle Type",
+            "走行距離計表示値": "Odometer Reading"
+        };
+
+        function App() {
+            const [image, setImage] = React.useState(null);
+            const [loading, setLoading] = React.useState(false);
+            const [results, setResults] = React.useState([]);
+
+            const handleFile = (e) => {
+                const file = e.target.files[0];
+                if (file) setImage(URL.createObjectURL(file));
+            };
+
+            const translate = async () => {
+                setLoading(true);
+                const { data: { text } } = await Tesseract.recognize(image, 'jpn+eng');
+                
+                const found = Object.keys(JPN_MAP).map(key => ({
+                    label: JPN_MAP[key],
+                    value: text.includes(key) ? "Detected" : "Scanning..."
+                }));
+                
+                setResults(found);
+                setLoading(false);
+            };
+
+            return (
+                <div className="container">
+                    <h2 style={{marginTop: 0}}>Export Translator</h2>
+                    <p style={{fontSize: '12px', color: '#666'}}>Scan Japanese Export Certificates Instantly</p>
+                    
+                    <div className="upload-box" onClick={() => document.getElementById('fileInput').click()}>
+                        {image ? <img src={image} style={{width: '100%'}} /> : <p>Tap to Upload Certificate Photo</p>}
+                        <input id="fileInput" type="file" hidden onChange={handleFile} />
+                    </div>
+
+                    <button className="btn" onClick={translate} disabled={loading || !image}>
+                        {loading ? "AI is Reading..." : "Start Translation"}
+                    </button>
+
+                    {results.length > 0 && (
+                        <table>
+                            <tbody>
+                                {results.map((r, i) => (
+                                    <tr key={i}>
+                                        <td className="label">{r.label}</td>
+                                        <td className="value">{r.value}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
